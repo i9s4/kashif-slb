@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>كاشف — حسابي</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .profile-avatar {
+      width: 80px; height: 80px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--blue), var(--accent));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem; font-weight: 700; color: var(--white);
+      margin: 0 auto 1rem;
+      box-shadow: 0 4px 20px rgba(30,77,183,0.4);
+    }
+    .profile-name { text-align: center; font-size: 1.3rem; font-weight: 700; }
+    .profile-role { text-align: center; color: var(--accent-soft); font-size: 0.88rem; margin-top: 0.25rem; }
+    .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media(max-width:500px) { .profile-grid { grid-template-columns: 1fr; } }
+    .info-item { background: rgba(10,22,40,0.5); border: 1px solid var(--border); border-radius: 10px; padding: 0.85rem 1rem; }
+    .info-label { font-size: 0.75rem; color: var(--gray-400); margin-bottom: 0.2rem; }
+    .info-value { font-size: 0.95rem; color: var(--white); font-weight: 500; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar" id="navbar"></nav>
+<div class="alert-permanent">⚠️ هذه الأداة غير رسمية. الأسعار تقريبية وقابلة للخطأ، يرجى المراجعة والتحقق.</div>
+
+<div class="container" style="max-width:680px;">
+  <div style="padding:1.5rem 0 1rem;">
+    <h2 style="font-size:1.3rem;font-weight:700;">حسابي</h2>
+  </div>
+
+  <!-- بطاقة المعلومات -->
+  <div class="card" style="margin-bottom:1.25rem;text-align:center;">
+    <div class="profile-avatar" id="avatar-text">؟</div>
+    <div class="profile-name" id="profile-name">...</div>
+    <div class="profile-role" id="profile-role">...</div>
+    <div style="margin-top:1.25rem;">
+      <div class="profile-grid">
+        <div class="info-item"><div class="info-label">البريد الإلكتروني</div><div class="info-value" id="pf-email">—</div></div>
+        <div class="info-item"><div class="info-label">رقم الهاتف</div><div class="info-value" id="pf-phone">—</div></div>
+        <div class="info-item"><div class="info-label">موقع العمل</div><div class="info-value" id="pf-location">—</div></div>
+        <div class="info-item"><div class="info-label">تاريخ التسجيل</div><div class="info-value" id="pf-date">—</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- تعديل رقم الهاتف -->
+  <div class="card" style="margin-bottom:1.25rem;">
+    <div class="card-header"><span class="card-title">📱 تغيير رقم الهاتف</span></div>
+    <form onsubmit="updatePhone(event)">
+      <div class="form-group">
+        <label class="form-label">رقم الهاتف الجديد</label>
+        <input type="tel" class="form-control" id="new-phone" placeholder="+965 xxxx xxxx" dir="ltr">
+      </div>
+      <div id="phone-msg" style="margin-bottom:0.75rem;"></div>
+      <button type="submit" class="btn btn-primary btn-sm">حفظ</button>
+    </form>
+  </div>
+
+  <!-- طلب تغيير الاسم -->
+  <div class="card" style="margin-bottom:1.25rem;">
+    <div class="card-header">
+      <span class="card-title">✏️ طلب تغيير الاسم</span>
+      <span class="badge badge-yellow" style="font-size:0.72rem;">يحتاج موافقة</span>
+    </div>
+    <form onsubmit="requestChange(event,'full_name')">
+      <div class="form-group">
+        <label class="form-label">الاسم الجديد</label>
+        <input type="text" class="form-control" id="new-name" placeholder="الاسم الكامل">
+      </div>
+      <div id="name-msg" style="margin-bottom:0.75rem;"></div>
+      <button type="submit" class="btn btn-outline btn-sm">إرسال الطلب</button>
+    </form>
+  </div>
+
+  <!-- طلب تغيير البريد -->
+  <div class="card" style="margin-bottom:1.25rem;">
+    <div class="card-header">
+      <span class="card-title">📧 طلب تغيير البريد الإلكتروني</span>
+      <span class="badge badge-yellow" style="font-size:0.72rem;">يحتاج موافقة</span>
+    </div>
+    <form onsubmit="requestChange(event,'email')">
+      <div class="form-group">
+        <label class="form-label">البريد الجديد</label>
+        <input type="email" class="form-control" id="new-email" dir="ltr">
+      </div>
+      <div id="email-msg" style="margin-bottom:0.75rem;"></div>
+      <button type="submit" class="btn btn-outline btn-sm">إرسال الطلب</button>
+    </form>
+  </div>
+
+  <!-- تغيير كلمة المرور -->
+  <div class="card">
+    <div class="card-header"><span class="card-title">🔐 تغيير كلمة المرور</span></div>
+    <form onsubmit="changePassword(event)">
+      <div class="form-group">
+        <label class="form-label">كلمة المرور الجديدة</label>
+        <input type="password" class="form-control" id="new-password" placeholder="8 أحرف على الأقل" minlength="8" dir="ltr">
+      </div>
+      <div class="form-group">
+        <label class="form-label">تأكيد كلمة المرور</label>
+        <input type="password" class="form-control" id="confirm-password" dir="ltr">
+      </div>
+      <div id="pass-msg" style="margin-bottom:0.75rem;"></div>
+      <button type="submit" class="btn btn-primary btn-sm">تغيير</button>
+    </form>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = 'https://eyspitmovlwytllqtndv.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV5c3BpdG1vdmx3eXRsbHF0bmR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3NzQzNTcsImV4cCI6MjA5NTM1MDM1N30.qUBjDq6--xDc6XTJXva6lJ9twWWKWlEVxi8S6WtB-oA';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const ROLES = { user:'مستخدم', customs_officer:'موظف جمارك', supervisor:'مسؤول', assistant_admin:'مساعد مدير', admin:'مدير' };
+
+let currentUser = null, currentProfile = null;
+
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { window.location.href = 'index.html'; return; }
+  currentUser = session.user;
+  const { data: profile } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+  if (!profile?.is_approved) { await sb.auth.signOut(); window.location.href = 'index.html'; return; }
+  currentProfile = profile;
+  sb.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', currentUser.id);
+  buildNavbar(); loadFontSize(); renderProfile();
+})();
+
+function renderProfile() {
+  const p = currentProfile;
+  document.getElementById('avatar-text').textContent = p.full_name?.[0] || '؟';
+  document.getElementById('profile-name').textContent = p.full_name;
+  document.getElementById('profile-role').textContent = ROLES[p.role] || p.role;
+  document.getElementById('pf-email').textContent    = currentUser.email || '—';
+  document.getElementById('pf-phone').textContent    = p.phone || '—';
+  document.getElementById('pf-location').textContent = p.work_location || '—';
+  document.getElementById('pf-date').textContent     = p.created_at ? new Date(p.created_at).toLocaleDateString('ar-KW') : '—';
+  if (p.phone) document.getElementById('new-phone').value = p.phone;
+}
+
+function buildNavbar() {
+  const role = currentProfile.role;
+  const links = {
+    user:            [['search.html','البحث'],['profile.html','حسابي'],['contact.html','اتصل بنا']],
+    customs_officer: [['search.html','البحث'],['profile.html','حسابي'],['contact.html','اتصل بنا']],
+    supervisor:      [['search.html','البحث'],['admin.html','رفع الكشوف'],['profile.html','حسابي'],['contact.html','اتصل بنا']],
+    assistant_admin: [['search.html','البحث'],['admin.html','لوحة التحكم'],['profile.html','حسابي'],['contact.html','اتصل بنا']],
+    admin:           [['search.html','البحث'],['admin.html','لوحة التحكم'],['profile.html','حسابي'],['contact.html','اتصل بنا']],
+  };
+  const navLinks = (links[role]||links.user).map(([href,label]) =>
+    `<li><a href="${href}" class="${location.pathname.endsWith(href)?'active':''}">${label}</a></li>`
+  ).join('');
+  document.getElementById('navbar').innerHTML = `
+    <a class="navbar-brand" href="search.html"><span class="navbar-title">كا<span>شف</span></span></a>
+    <button class="navbar-toggle" onclick="this.nextElementSibling.classList.toggle('open')">☰</button>
+    <ul class="navbar-nav">${navLinks}</ul>
+    <div class="navbar-actions">
+      <div class="font-size-controls"><button onclick="adjustFont(-1)">أ-</button><button onclick="adjustFont(1)">أ+</button></div>
+      <button class="btn-logout" onclick="logout()">خروج</button>
+    </div>`;
+}
+function adjustFont(d) { const c=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--font-size-base'))||15; const n=Math.min(20,Math.max(12,c+d)); document.documentElement.style.setProperty('--font-size-base',n+'px'); localStorage.setItem('kashif_font',n); }
+function loadFontSize() { const s=localStorage.getItem('kashif_font'); if(s) document.documentElement.style.setProperty('--font-size-base',s+'px'); }
+async function logout() { await sb.auth.signOut(); window.location.href='index.html'; }
+
+async function updatePhone(e) {
+  e.preventDefault();
+  const phone = document.getElementById('new-phone').value.trim();
+  const { error } = await sb.from('profiles').update({ phone }).eq('id', currentUser.id);
+  document.getElementById('phone-msg').innerHTML = error
+    ? `<div class="alert alert-danger">${error.message}</div>`
+    : `<div class="alert alert-success">✅ تم تحديث رقم الهاتف</div>`;
+  if (!error) { currentProfile.phone = phone; renderProfile(); }
+}
+
+async function requestChange(e, field) {
+  e.preventDefault();
+  const msgId = field === 'full_name' ? 'name-msg' : 'email-msg';
+  const inputId = field === 'full_name' ? 'new-name' : 'new-email';
+  const newValue = document.getElementById(inputId).value.trim();
+  if (!newValue) return;
+  const oldValue = field === 'full_name' ? currentProfile.full_name : currentUser.email;
+  const { error } = await sb.from('change_requests').insert({
+    user_id: currentUser.id, field_name: field,
+    old_value: oldValue, new_value: newValue, status: 'pending'
+  });
+  document.getElementById(msgId).innerHTML = error
+    ? `<div class="alert alert-danger">${error.message}</div>`
+    : `<div class="alert alert-success">✅ تم إرسال الطلب. في انتظار الموافقة.</div>`;
+}
+
+async function changePassword(e) {
+  e.preventDefault();
+  const p1 = document.getElementById('new-password').value;
+  const p2 = document.getElementById('confirm-password').value;
+  if (p1 !== p2) { document.getElementById('pass-msg').innerHTML='<div class="alert alert-danger">كلمتا المرور غير متطابقتين</div>'; return; }
+  const { error } = await sb.auth.updateUser({ password: p1 });
+  document.getElementById('pass-msg').innerHTML = error
+    ? `<div class="alert alert-danger">${error.message}</div>`
+    : `<div class="alert alert-success">✅ تم تغيير كلمة المرور</div>`;
+}
+</script>
+</body>
+</html>

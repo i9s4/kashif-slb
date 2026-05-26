@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>كاشف — البحث</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .search-hero { padding: 2rem 0 1rem; }
+    .search-hero h2 { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.3rem; }
+    .search-hero p  { color: var(--gray-400); font-size: 0.88rem; }
+
+    .vin-section {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .vin-title { font-size: 0.95rem; font-weight: 600; margin-bottom: 1rem; color: var(--blue-glow); }
+    .vin-input-row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .vin-input-row input { flex: 1; min-width: 200px; letter-spacing: 0.1em; }
+    .vin-result {
+      display: flex; gap: 1rem; flex-wrap: wrap;
+      margin-top: 1rem; padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+    .vin-chip {
+      padding: 0.4rem 0.85rem;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      background: rgba(59,130,246,0.1);
+      border: 1px solid rgba(59,130,246,0.25);
+      color: var(--blue-glow);
+    }
+    .vin-chip strong { color: var(--white); margin-right: 0.4rem; }
+
+    .filter-bar {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      margin-bottom: 1.5rem;
+    }
+    .filter-bar .form-group { margin-bottom: 0; flex: 1; min-width: 160px; }
+
+    .results-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;
+    }
+    .results-count { font-size: 0.85rem; color: var(--gray-400); }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .compare-bar {
+      position: fixed;
+      bottom: 0; right: 0; left: 0;
+      background: rgba(10,22,40,0.97);
+      border-top: 1px solid var(--border);
+      backdrop-filter: blur(12px);
+      padding: 0.75rem 1.5rem;
+      display: flex; align-items: center; gap: 1rem;
+      z-index: 50;
+      transform: translateY(100%);
+      transition: transform 0.3s;
+    }
+    .compare-bar.visible { transform: translateY(0); }
+    .compare-bar p { flex: 1; font-size: 0.9rem; color: var(--gray-200); }
+
+    .exchange-info {
+      font-size: 0.78rem; color: var(--gray-600);
+      display: flex; align-items: center; gap: 0.4rem;
+      margin-bottom: 1rem;
+    }
+
+    .print-area { display: none; }
+
+    @media print {
+      .print-area { display: block; }
+      .navbar, .filter-bar, .vin-section, .compare-bar, .alert-permanent { display: none !important; }
+      .results-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- شريط التنقل -->
+<nav class="navbar" id="navbar"></nav>
+
+<!-- التنبيه الثابت -->
+<div class="alert-permanent">
+  ⚠️ هذه الأداة غير رسمية. الأسعار تقريبية وقابلة للخطأ، يرجى المراجعة والتحقق.
+</div>
+
+<div class="container">
+  <div class="search-hero">
+    <h2>البحث عن السيارات</h2>
+    <p>ابحث بالاسم أو الشاصي لاستعراض قيمة المركبة</p>
+  </div>
+
+  <!-- قسم الشاصي -->
+  <div class="vin-section">
+    <div class="vin-title">🔍 فك رقم الشاصي (VIN)</div>
+    <div class="vin-input-row">
+      <input type="text" class="form-control" id="vin-input" placeholder="أدخل رقم الشاصي (17 خانة)" maxlength="17" dir="ltr" oninput="this.value=this.value.toUpperCase()">
+      <button class="btn btn-primary" onclick="decodeVIN()">فك الشاصي</button>
+      <button class="btn btn-outline" onclick="searchByVIN()" id="btn-search-vin" style="display:none;">بحث تلقائي</button>
+    </div>
+    <div id="vin-result" class="vin-result" style="display:none;"></div>
+  </div>
+
+  <!-- فلاتر البحث -->
+  <div class="filter-bar">
+    <div class="form-group">
+      <label class="form-label">بحث بالاسم أو الموديل</label>
+      <input type="text" class="form-control" id="search-text" placeholder="مثال: كامري، لاندكروزر..." oninput="debounceSearch()">
+    </div>
+    <div class="form-group">
+      <label class="form-label">العلامة التجارية</label>
+      <select class="form-control" id="filter-brand" onchange="doSearch()">
+        <option value="">كل العلامات</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">سنة الموديل</label>
+      <select class="form-control" id="filter-year" onchange="doSearch()">
+        <option value="">كل السنوات</option>
+      </select>
+    </div>
+    <div class="form-group" id="date-filter-group" style="display:none;">
+      <label class="form-label">تاريخ سعر الصرف</label>
+      <input type="date" class="form-control" id="filter-date" onchange="doSearch()">
+    </div>
+    <button class="btn btn-outline btn-sm" onclick="clearFilters()">مسح الفلاتر</button>
+    <button class="btn btn-outline btn-sm" onclick="window.print()">🖨️ طباعة</button>
+  </div>
+
+  <!-- معلومات سعر الصرف -->
+  <div class="exchange-info" id="exchange-info">
+    <span>⏳ جاري تحميل أسعار الصرف...</span>
+  </div>
+
+  <!-- نتائج البحث -->
+  <div class="results-header">
+    <div class="results-count" id="results-count">جاري البحث...</div>
+    <div id="compare-toggle" style="display:none;">
+      <button class="btn btn-outline btn-sm" onclick="toggleCompareMode()">🔀 وضع المقارنة</button>
+    </div>
+  </div>
+
+  <div id="results-container">
+    <div class="loading-overlay">
+      <div class="spinner"></div>
+      <span>جاري التحميل...</span>
+    </div>
+  </div>
+</div>
+
+<!-- شريط المقارنة -->
+<div class="compare-bar" id="compare-bar">
+  <p>تم اختيار <strong id="compare-count">0</strong> سيارة للمقارنة (الحد الأقصى 2)</p>
+  <button class="btn btn-primary btn-sm" onclick="showComparison()">مقارنة</button>
+  <button class="btn btn-outline btn-sm" onclick="clearComparison()">إلغاء</button>
+</div>
+
+<!-- مودال المقارنة -->
+<div class="modal-overlay" id="modal-compare">
+  <div class="modal" style="max-width:700px;">
+    <div class="modal-header">
+      <span class="modal-title">مقارنة السيارات</span>
+      <button class="modal-close" onclick="closeModal('modal-compare')">×</button>
+    </div>
+    <div id="compare-content"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = 'https://eyspitmovlwytllqtndv.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV5c3BpdG1vdmx3eXRsbHF0bmR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3NzQzNTcsImV4cCI6MjA5NTM1MDM1N30.qUBjDq6--xDc6XTJXva6lJ9twWWKWlEVxi8S6WtB-oA';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentUser = null;
+let currentProfile = null;
+let exchangeRates = {};
+let exchangeRateDate = '';
+let allVehicles = [];
+let compareMode = false;
+let selectedForCompare = [];
+let searchTimer = null;
+
+// =============================================
+// التهيئة
+// =============================================
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { window.location.href = 'index.html'; return; }
+  currentUser = session.user;
+
+  const { data: profile } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+  if (!profile?.is_approved) { await sb.auth.signOut(); window.location.href = 'index.html'; return; }
+  currentProfile = profile;
+
+  // تحديث آخر ظهور
+  sb.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', currentUser.id);
+
+  buildNavbar();
+  loadFontSize();
+  await loadExchangeRates();
+  await loadFilterOptions();
+  await doSearch();
+
+  // إظهار فلتر التاريخ للمشرف فما فوق
+  const elevated = ['supervisor','assistant_admin','admin'];
+  if (elevated.includes(currentProfile.role)) {
+    document.getElementById('date-filter-group').style.display = '';
+    document.getElementById('compare-toggle').style.display = '';
+  }
+})();
+
+// =============================================
+// شريط التنقل
+// =============================================
+function buildNavbar() {
+  const role = currentProfile?.role || 'user';
+  const links = {
+    user:            [['search.html','البحث'],['profile.html','حسابي'],['contact.html','اتصل بنا']],
+    customs_officer: [['search.html','البحث'],['profile.html','حسابي'],['contact.html','اتصل بنا']],
+    supervisor:      [['search.html','البحث'],['admin.html','رفع الكشوف'],['profile.html','حسابي'],['contact.html','اتصل بنا']],
+    assistant_admin: [['search.html','البحث'],['admin.html','لوحة التحكم'],['profile.html','حسابي'],['contact.html','اتصل بنا']],
+    admin:           [['search.html','البحث'],['admin.html','لوحة التحكم'],['profile.html','حسابي'],['contact.html','اتصل بنا']],
+  };
+  const navLinks = (links[role] || links.user).map(([href,label]) =>
+    `<li><a href="${href}" class="${location.pathname.endsWith(href)?'active':''}">${label}</a></li>`
+  ).join('');
+
+  document.getElementById('navbar').innerHTML = `
+    <a class="navbar-brand" href="search.html">
+      <svg class="navbar-logo" viewBox="0 0 40 40" fill="none">
+        <rect width="40" height="40" rx="10" fill="rgba(30,77,183,0.15)" stroke="rgba(59,130,246,0.3)" stroke-width="1"/>
+        <rect x="6" y="20" width="20" height="9" rx="2.5" fill="rgba(59,130,246,0.5)" stroke="rgba(96,165,250,0.7)" stroke-width="0.8"/>
+        <path d="M8 20L12 13H26L30 20" fill="rgba(30,77,183,0.7)" stroke="rgba(96,165,250,0.5)" stroke-width="0.8"/>
+        <circle cx="12" cy="29" r="3.5" fill="var(--navy)" stroke="rgba(96,165,250,0.8)" stroke-width="1.2"/>
+        <circle cx="12" cy="29" r="1.5" fill="rgba(96,165,250,0.6)"/>
+        <circle cx="24" cy="29" r="3.5" fill="var(--navy)" stroke="rgba(96,165,250,0.8)" stroke-width="1.2"/>
+        <circle cx="24" cy="29" r="1.5" fill="rgba(96,165,250,0.6)"/>
+        <circle cx="32" cy="15" r="6" fill="none" stroke="rgba(14,165,233,0.6)" stroke-width="1.2"/>
+        <line x1="36" y1="19" x2="39" y2="22" stroke="rgba(56,189,248,0.8)" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <span class="navbar-title">كا<span>شف</span></span>
+    </a>
+    <button class="navbar-toggle" onclick="this.nextElementSibling.classList.toggle('open')">☰</button>
+    <ul class="navbar-nav">${navLinks}</ul>
+    <div class="navbar-actions">
+      <div class="font-size-controls">
+        <button onclick="adjustFont(-1)">أ-</button>
+        <button onclick="adjustFont(1)">أ+</button>
+      </div>
+      <button class="btn-logout" onclick="logout()">خروج</button>
+    </div>
+  `;
+}
+
+function adjustFont(delta) {
+  const current = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--font-size-base')) || 15;
+  const next = Math.min(20, Math.max(12, current + delta));
+  document.documentElement.style.setProperty('--font-size-base', next + 'px');
+  localStorage.setItem('kashif_font', next);
+}
+function loadFontSize() {
+  const saved = localStorage.getItem('kashif_font');
+  if (saved) document.documentElement.style.setProperty('--font-size-base', saved + 'px');
+}
+
+async function logout() {
+  await sb.auth.signOut();
+  window.location.href = 'index.html';
+}
+
+// =============================================
+// أسعار الصرف
+// =============================================
+async function loadExchangeRates() {
+  const filterDate = document.getElementById('filter-date')?.value;
+  let query = sb.from('exchange_rates').select('*').eq('is_approved', true).order('valid_from', { ascending: false }).limit(1);
+  if (filterDate) query = query.lte('valid_from', filterDate);
+
+  const { data } = await query;
+  if (data && data.length > 0) {
+    exchangeRates = data[0].rates || {};
+    exchangeRateDate = data[0].valid_from;
+    document.getElementById('exchange-info').innerHTML =
+      `📅 سعر الصرف المستخدم بتاريخ: <strong>${exchangeRateDate}</strong> (بالفلس الكويتي)`;
+  } else {
+    document.getElementById('exchange-info').innerHTML = '⚠️ لا يوجد كشف صرف معتمد';
+  }
+}
+
+// =============================================
+// فلاتر البحث
+// =============================================
+async function loadFilterOptions() {
+  const { data } = await sb.from('vehicles').select('brand, model_year').eq('is_approved', true).eq('is_active', true);
+  if (!data) return;
+  const brands = [...new Set(data.map(v => v.brand))].sort();
+  const years  = [...new Set(data.map(v => v.model_year).filter(Boolean))].sort((a,b) => b-a);
+  const brandSel = document.getElementById('filter-brand');
+  brands.forEach(b => { const o = document.createElement('option'); o.value = b; o.textContent = b; brandSel.appendChild(o); });
+  const yearSel  = document.getElementById('filter-year');
+  years.forEach(y  => { const o = document.createElement('option'); o.value = y; o.textContent = y; yearSel.appendChild(o); });
+}
+
+// =============================================
+// البحث
+// =============================================
+function debounceSearch() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(doSearch, 400);
+}
+
+async function doSearch() {
+  await loadExchangeRates();
+  const text  = document.getElementById('search-text').value.trim();
+  const brand = document.getElementById('filter-brand').value;
+  const year  = document.getElementById('filter-year').value;
+
+  let query = sb.from('vehicles').select('*, agencies(name_ar)').eq('is_approved', true).eq('is_active', true);
+  if (brand) query = query.eq('brand', brand);
+  if (year)  query = query.eq('model_year', parseInt(year));
+  if (text)  query = query.or(`brand.ilike.%${text}%,model.ilike.%${text}%,variant.ilike.%${text}%`);
+  query = query.order('brand').order('model');
+
+  const { data } = await query;
+  allVehicles = data || [];
+
+  // تسجيل البحث
+  if (text) {
+    sb.from('search_logs').insert({ user_id: currentUser.id, search_query: text, results_count: allVehicles.length });
+  }
+
+  renderResults();
+}
+
+function clearFilters() {
+  document.getElementById('search-text').value = '';
+  document.getElementById('filter-brand').value = '';
+  document.getElementById('filter-year').value  = '';
+  if (document.getElementById('filter-date')) document.getElementById('filter-date').value = '';
+  doSearch();
+}
+
+// =============================================
+// عرض النتائج
+// =============================================
+const isCustomsOrAbove = () => ['customs_officer','supervisor','assistant_admin','admin'].includes(currentProfile?.role);
+
+function convertPrice(amount, currency) {
+  if (!amount) return null;
+  // القيم في الكشف بالفلس (1 KWD = 1000 فلس)
+  const rates = exchangeRates;
+  const toKWD = {
+    KWD: 1,
+    USD: rates.USD ? 1 / (rates.USD / 1000) : null,
+    EUR: rates.EUR ? 1 / (rates.EUR / 1000) : null,
+    JPY: rates.JPY ? 1 / (rates.JPY / 1000) : null,
+  };
+  const amountInKWD = currency === 'KWD' ? amount : (toKWD[currency] ? amount * toKWD[currency] : null);
+  if (!amountInKWD) return null;
+  return {
+    KWD: amountInKWD.toFixed(3),
+    USD: rates.USD ? (amountInKWD * (rates.USD / 1000)).toFixed(2) : '—',
+    EUR: rates.EUR ? (amountInKWD * (rates.EUR / 1000)).toFixed(2) : '—',
+    JPY: rates.JPY ? Math.round(amountInKWD * (rates.JPY / 1000)).toLocaleString() : '—',
+  };
+}
+
+function renderResults() {
+  const container = document.getElementById('results-container');
+  document.getElementById('results-count').textContent = `${allVehicles.length} نتيجة`;
+
+  if (allVehicles.length === 0) {
+    container.innerHTML = `<div class="empty-state"><div class="icon">🚗</div><p>لا توجد نتائج مطابقة</p></div>`;
+    return;
+  }
+
+  container.innerHTML = `<div class="results-grid">${allVehicles.map(v => vehicleCard(v)).join('')}</div>`;
+}
+
+function vehicleCard(v) {
+  const prices = convertPrice(v.price_amount, v.price_currency);
+  const showDuty = isCustomsOrAbove();
+  const duty     = showDuty && prices ? (parseFloat(prices.KWD) * v.customs_duty_pct / 100).toFixed(3) : null;
+  const total    = showDuty && prices ? (parseFloat(prices.KWD) + parseFloat(duty)).toFixed(3) : null;
+
+  const pricesHtml = prices ? `
+    <div class="vehicle-prices">
+      <div class="price-item"><div class="price-currency">دينار كويتي</div><div class="price-amount">${parseFloat(prices.KWD).toLocaleString()}</div></div>
+      <div class="price-item"><div class="price-currency">دولار أمريكي</div><div class="price-amount">${prices.USD}</div></div>
+      <div class="price-item"><div class="price-currency">يورو</div><div class="price-amount">${prices.EUR}</div></div>
+      <div class="price-item"><div class="price-currency">ين ياباني</div><div class="price-amount">${prices.JPY}</div></div>
+    </div>` : '<div class="alert alert-warning" style="font-size:0.82rem;margin-top:0.75rem;">⚠️ لا يوجد سعر صرف معتمد</div>';
+
+  const dutyHtml = showDuty && duty ? `
+    <div class="vehicle-duty">
+      <div class="duty-item"><div class="duty-label">السعر الأصلي</div><div class="duty-value">${parseFloat(prices.KWD).toLocaleString()} د.ك</div></div>
+      <div class="duty-item"><div class="duty-label">الضريبة الجمركية ${v.customs_duty_pct}%</div><div class="duty-value">${parseFloat(duty).toLocaleString()} د.ك</div></div>
+      <div class="duty-item duty-total"><div class="duty-label">الإجمالي</div><div class="duty-value">${parseFloat(total).toLocaleString()} د.ك</div></div>
+    </div>` : '';
+
+  const compareBtn = compareMode ? `<button class="btn btn-outline btn-sm" onclick="toggleCompare(${v.id})" id="cmp-${v.id}">+ مقارنة</button>` : '';
+
+  return `
+  <div class="vehicle-card" id="vc-${v.id}">
+    <div class="vehicle-header">
+      <div>
+        <div class="vehicle-name">${v.brand} ${v.model} ${v.variant || ''}</div>
+        <div class="vehicle-agency">${v.agencies?.name_ar || ''} · ${v.model_year || ''} · ${v.origin_country || ''}</div>
+      </div>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+        ${compareBtn}
+        <span class="badge badge-blue">${v.price_currency}</span>
+      </div>
+    </div>
+    ${pricesHtml}
+    ${dutyHtml}
+    ${v.description ? `<div style="margin-top:0.75rem;font-size:0.8rem;color:var(--gray-400);">${v.description}</div>` : ''}
+  </div>`;
+}
+
+// =============================================
+// فك الشاصي
+// =============================================
+const VIN_WMI = {
+  '1G':'جنرال موتورز (أمريكا)', '2G':'جنرال موتورز (كندا)', '3G':'جنرال موتورز (المكسيك)',
+  '1F':'فورد (أمريكا)', '2F':'فورد (كندا)', '1H':'هوندا (أمريكا)', '2H':'هوندا (كندا)',
+  'JH':'هوندا (اليابان)', 'JT':'تويوتا (اليابان)', 'JS':'سوزوكي (اليابان)',
+  'KM':'هيونداي (كوريا)', 'KN':'كيا (كوريا)', 'LF':'فورد (الصين)', 'LG':'جنرال موتورز (الصين)',
+  'WV':'فولكس فاغن (ألمانيا)', 'WB':'بي إم دبليو (ألمانيا)', 'WD':'مرسيدس (ألمانيا)',
+  'SA':'جاكوار / لاند روفر (المملكة المتحدة)', 'VF':'بيجو / رينو (فرنسا)',
+  'ZF':'فيات (إيطاليا)', 'YS':'فولفو (السويد)', 'NM':'مازدا (تركيا)',
+};
+const YEARS = {
+  A:1980,B:1981,C:1982,D:1983,E:1984,F:1985,G:1986,H:1987,J:1988,K:1989,L:1990,
+  M:1991,N:1992,P:1993,R:1994,S:1995,T:1996,V:1997,W:1998,X:1999,Y:2000,
+  1:2001,2:2002,3:2003,4:2004,5:2005,6:2006,7:2007,8:2008,9:2009,
+  A:2010,B:2011,C:2012,D:2013,E:2014,F:2015,G:2016,H:2017,J:2018,K:2019,L:2020,
+  M:2021,N:2022,P:2023,R:2024,S:2025,T:2026
+};
+
+function decodeVIN() {
+  const vin = document.getElementById('vin-input').value.trim().toUpperCase();
+  if (vin.length !== 17) {
+    document.getElementById('vin-result').innerHTML = '<div class="alert alert-danger" style="font-size:0.82rem;">رقم الشاصي يجب أن يكون 17 خانة</div>';
+    document.getElementById('vin-result').style.display = '';
+    return;
+  }
+  const wmi   = vin.substring(0,2);
+  const maker = VIN_WMI[wmi] || 'غير معروف';
+  const yearCode = vin[9];
+  const year = YEARS[yearCode] || 'غير معروف';
+  document.getElementById('vin-result').innerHTML = `
+    <div class="vin-chip">الشركة المصنعة: <strong>${maker}</strong></div>
+    <div class="vin-chip">سنة الصنع: <strong>${year}</strong></div>
+    <div class="vin-chip">بلد التصنيع: <strong>${getCountry(vin[0])}</strong></div>
+  `;
+  document.getElementById('vin-result').style.display = 'flex';
+  document.getElementById('btn-search-vin').style.display = '';
+}
+
+function getCountry(c) {
+  const map = {1:'أمريكا',2:'كندا',3:'المكسيك',J:'اليابان',K:'كوريا',L:'الصين',S:'المملكة المتحدة',V:'فرنسا',W:'ألمانيا',Y:'السويد',Z:'إيطاليا'};
+  return map[c] || 'غير معروف';
+}
+
+function searchByVIN() {
+  const vin = document.getElementById('vin-input').value.trim().toUpperCase();
+  if (vin.length < 2) return;
+  const wmi = vin.substring(0,2);
+  const brand = VIN_WMI[wmi]?.split(' ')[0] || '';
+  if (brand) document.getElementById('search-text').value = brand;
+  doSearch();
+}
+
+// =============================================
+// وضع المقارنة
+// =============================================
+function toggleCompareMode() {
+  compareMode = !compareMode;
+  selectedForCompare = [];
+  updateCompareBar();
+  renderResults();
+}
+
+function toggleCompare(id) {
+  const v = allVehicles.find(x => x.id === id);
+  if (!v) return;
+  const idx = selectedForCompare.findIndex(x => x.id === id);
+  if (idx > -1) {
+    selectedForCompare.splice(idx, 1);
+  } else {
+    if (selectedForCompare.length >= 2) { alert('الحد الأقصى للمقارنة سيارتان'); return; }
+    selectedForCompare.push(v);
+  }
+  updateCompareBar();
+  // تحديث زر المقارنة
+  const btn = document.getElementById(`cmp-${id}`);
+  if (btn) btn.textContent = idx > -1 ? '+ مقارنة' : '✓ تم';
+}
+
+function updateCompareBar() {
+  const bar = document.getElementById('compare-bar');
+  document.getElementById('compare-count').textContent = selectedForCompare.length;
+  bar.classList.toggle('visible', compareMode && selectedForCompare.length > 0);
+}
+
+function clearComparison() {
+  selectedForCompare = [];
+  compareMode = false;
+  updateCompareBar();
+  renderResults();
+}
+
+function showComparison() {
+  if (selectedForCompare.length < 2) { alert('اختر سيارتين للمقارنة'); return; }
+  const [a, b] = selectedForCompare;
+  const pa = convertPrice(a.price_amount, a.price_currency);
+  const pb = convertPrice(b.price_amount, b.price_currency);
+
+  document.getElementById('compare-content').innerHTML = `
+    <div class="table-wrapper">
+    <table>
+      <thead><tr><th>البيان</th><th>${a.brand} ${a.model}</th><th>${b.brand} ${b.model}</th></tr></thead>
+      <tbody>
+        <tr><td>الموديل</td><td>${a.model} ${a.variant||''}</td><td>${b.model} ${b.variant||''}</td></tr>
+        <tr><td>الوكالة</td><td>${a.agencies?.name_ar||'—'}</td><td>${b.agencies?.name_ar||'—'}</td></tr>
+        <tr><td>السنة</td><td>${a.model_year||'—'}</td><td>${b.model_year||'—'}</td></tr>
+        <tr><td>المنشأ</td><td>${a.origin_country||'—'}</td><td>${b.origin_country||'—'}</td></tr>
+        <tr><td>السعر (د.ك)</td><td>${pa?parseFloat(pa.KWD).toLocaleString():'—'}</td><td>${pb?parseFloat(pb.KWD).toLocaleString():'—'}</td></tr>
+        <tr><td>السعر (دولار)</td><td>${pa?.USD||'—'}</td><td>${pb?.USD||'—'}</td></tr>
+        ${isCustomsOrAbove()&&pa&&pb?`
+        <tr><td>الضريبة الجمركية</td><td>${(parseFloat(pa.KWD)*a.customs_duty_pct/100).toFixed(3)} د.ك</td><td>${(parseFloat(pb.KWD)*b.customs_duty_pct/100).toFixed(3)} د.ك</td></tr>
+        <tr><td>الإجمالي</td><td>${(parseFloat(pa.KWD)*(1+a.customs_duty_pct/100)).toFixed(3)} د.ك</td><td>${(parseFloat(pb.KWD)*(1+b.customs_duty_pct/100)).toFixed(3)} د.ك</td></tr>`:''}
+      </tbody>
+    </table></div>
+    <div style="margin-top:1rem;font-size:0.78rem;color:var(--gray-600);">📅 بتاريخ صرف: ${exchangeRateDate||'—'}</div>
+  `;
+  document.getElementById('modal-compare').classList.add('active');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+</script>
+</body>
+</html>

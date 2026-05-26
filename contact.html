@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>كاشف — اتصل بنا</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .contact-card {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .contact-info {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .contact-item {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem 1.25rem;
+      background: rgba(10,22,40,0.5);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      transition: border-color 0.2s;
+    }
+    .contact-item:hover { border-color: var(--border-hover); }
+    .contact-icon {
+      width: 44px; height: 44px;
+      border-radius: 10px;
+      background: rgba(59,130,246,0.1);
+      border: 1px solid rgba(59,130,246,0.2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem;
+      flex-shrink: 0;
+    }
+    .contact-label { font-size: 0.78rem; color: var(--gray-400); margin-bottom: 0.15rem; }
+    .contact-value { font-size: 0.95rem; color: var(--white); font-weight: 500; }
+    .contact-value a { color: var(--blue-glow); text-decoration: none; }
+    .contact-value a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar" id="navbar"></nav>
+
+<div class="alert-permanent">
+  ⚠️ هذه الأداة غير رسمية وتهدف لاختصار الوقت والجهد. الأسعار والمعلومات المعروضة تقريبية وقابلة للخطأ، يرجى المراجعة والتحقق.
+</div>
+
+<div class="container">
+  <div style="padding:1.5rem 0 1rem;">
+    <h2 style="font-size:1.3rem;font-weight:700;">اتصل بنا</h2>
+    <p style="color:var(--gray-400);font-size:0.88rem;margin-top:0.25rem;">للاستفسارات والملاحظات</p>
+  </div>
+
+  <div class="contact-card">
+    <!-- معلومات الاتصال -->
+    <div class="card" style="margin-bottom:1.25rem;" id="contact-info-card">
+      <div class="card-header"><span class="card-title">📋 معلومات التواصل</span></div>
+      <div class="contact-info" id="contact-info-items">
+        <div class="loading-overlay" style="padding:1.5rem;"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+    <!-- نموذج الاقتراح -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">💡 إرسال اقتراح أو ملاحظة</span></div>
+      <form onsubmit="submitSuggestion(event)" style="margin-top:0.25rem;">
+        <div class="form-group">
+          <label class="form-label">رسالتك</label>
+          <textarea class="form-control" id="suggestion-text" rows="5" placeholder="اكتب اقتراحك أو ملاحظتك هنا..." required style="resize:vertical;"></textarea>
+        </div>
+        <div id="suggestion-msg" style="margin-bottom:0.75rem;"></div>
+        <button type="submit" class="btn btn-accent">إرسال</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = 'https://eyspitmovlwytllqtndv.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV5c3BpdG1vdmx3eXRsbHF0bmR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3NzQzNTcsImV4cCI6MjA5NTM1MDM1N30.qUBjDq6--xDc6XTJXva6lJ9twWWKWlEVxi8S6WtB-oA';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const ROLES = { user:'مستخدم', customs_officer:'موظف جمارك', supervisor:'مسؤول', assistant_admin:'مساعد مدير', admin:'مدير' };
+
+let currentUser = null, currentProfile = null;
+
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { window.location.href = 'index.html'; return; }
+  currentUser = session.user;
+  const { data: profile } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+  if (!profile?.is_approved) { await sb.auth.signOut(); window.location.href = 'index.html'; return; }
+  currentProfile = profile;
+  sb.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', currentUser.id);
+  buildNavbar(); loadFontSize(); loadContactInfo();
+})();
+
+async function loadContactInfo() {
+  const { data } = await sb.from('contact_settings').select('*').eq('id', 1).single();
+  const container = document.getElementById('contact-info-items');
+  if (!data || (!data.phone && !data.email && !data.entity_name)) {
+    container.innerHTML = '<div class="alert alert-info" style="font-size:0.85rem;">لم يتم تعيين معلومات الاتصال بعد.</div>';
+    return;
+  }
+  let html = '';
+  if (data.entity_name) html += `
+    <div class="contact-item">
+      <div class="contact-icon">🏛️</div>
+      <div><div class="contact-label">الجهة المسؤولة</div><div class="contact-value">${data.entity_name}</div></div>
+    </div>`;
+  if (data.phone) html += `
+    <div class="contact-item">
+      <div class="contact-icon">📞</div>
+      <div>
+        <div class="contact-label">الهاتف / واتساب</div>
+        <div class="contact-value">
+          <a href="tel:${data.phone}">${data.phone}</a>
+          &nbsp;·&nbsp;
+          <a href="https://wa.me/${data.phone.replace(/\D/g,'')}" target="_blank">واتساب</a>
+        </div>
+      </div>
+    </div>`;
+  if (data.email) html += `
+    <div class="contact-item">
+      <div class="contact-icon">📧</div>
+      <div>
+        <div class="contact-label">البريد الإلكتروني</div>
+        <div class="contact-value"><a href="mailto:${data.email}" dir="ltr">${data.email}</a></div>
+      </div>
+    </div>`;
+  container.innerHTML = html;
+}
+
+async function submitSuggestion(e) {
+  e.preventDefault();
+  const msg = document.getElementById('suggestion-text').value.trim();
+  const { error } = await sb.from('suggestions').insert({ user_id: currentUser.id, message: msg });
+  document.getElementById('suggestion-msg').innerHTML = error
+    ? `<div class="alert alert-danger">${error.message}</div>`
+    : `<div class="alert alert-success">✅ تم إرسال ملاحظتك. شكراً!</div>`;
+  if (!error) document.getElementById('suggestion-text').value = '';
+}
+
+function buildNavbar() {
+  const role = currentProfile.role;
+  const links = {
+    user:            [['search.html','البحث'],['profile.html','حسابي'],['contact.html','اتصل بنا']],
+    customs_officer: [['search.html','البحث'],['profile.html','حسابي'],['contact.html','اتصل بنا']],
+    supervisor:      [['search.html','البحث'],['admin.html','رفع الكشوف'],['profile.html','حسابي'],['contact.html','اتصل بنا']],
+    assistant_admin: [['search.html','البحث'],['admin.html','لوحة التحكم'],['profile.html','حسابي'],['contact.html','اتصل بنا']],
+    admin:           [['search.html','البحث'],['admin.html','لوحة التحكم'],['profile.html','حسابي'],['contact.html','اتصل بنا']],
+  };
+  const navLinks = (links[role]||links.user).map(([href,label]) =>
+    `<li><a href="${href}" class="${location.pathname.endsWith(href)?'active':''}">${label}</a></li>`
+  ).join('');
+  document.getElementById('navbar').innerHTML = `
+    <a class="navbar-brand" href="search.html"><span class="navbar-title">كا<span>شف</span></span></a>
+    <button class="navbar-toggle" onclick="this.nextElementSibling.classList.toggle('open')">☰</button>
+    <ul class="navbar-nav">${navLinks}</ul>
+    <div class="navbar-actions">
+      <div class="font-size-controls"><button onclick="adjustFont(-1)">أ-</button><button onclick="adjustFont(1)">أ+</button></div>
+      <button class="btn-logout" onclick="logout()">خروج</button>
+    </div>`;
+}
+function adjustFont(d) { const c=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--font-size-base'))||15; const n=Math.min(20,Math.max(12,c+d)); document.documentElement.style.setProperty('--font-size-base',n+'px'); localStorage.setItem('kashif_font',n); }
+function loadFontSize() { const s=localStorage.getItem('kashif_font'); if(s) document.documentElement.style.setProperty('--font-size-base',s+'px'); }
+async function logout() { await sb.auth.signOut(); window.location.href='index.html'; }
+</script>
+</body>
+</html>
